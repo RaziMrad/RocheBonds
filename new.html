@@ -1,0 +1,335 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Roche USD Coupon Sensitivity — Dashboard</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
+<style>
+  :root{
+    --bg:#0f172a; --card:#0b1020; --muted:#94a3b8; --text:#e5e7eb; --border:#1f2937;
+    --accent:#38bdf8; --good:#22c55e; --warn:#f59e0b; --bad:#ef4444;
+    --chart-h: 330px; --chart-h-compact: 230px;
+  }
+  .light{ --bg:#f8fafc; --card:#ffffff; --muted:#475569; --text:#0f172a; --border:#e2e8f0; --accent:#0369a1; }
+  *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--text);
+    font:15px/1.55 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+  .wrap{max-width:1200px;margin:26px auto;padding:0 16px}
+  h1{margin:0 0 6px;font-size:24px} .sub{color:var(--muted);margin:0 0 16px}
+  .grid{display:grid;gap:16px;grid-template-columns:1.15fr 0.85fr}
+  @media (max-width:1080px){.grid{grid-template-columns:1fr}}
+  .card{background:var(--card); border:1px solid var(--border); border-radius:12px; padding:12px}
+  .card h2{margin:0 0 10px;font-size:16px}
+  .section{display:grid; gap:10px; grid-template-columns:repeat(3,1fr)}
+  .section + .section{margin-top:10px}
+  label{display:block;font-size:12px;color:var(--muted);margin-bottom:6px}
+  input[type="number"], select{width:100%; padding:10px; border-radius:10px; border:1px solid var(--border);
+    background:transparent; color:var(--text)}
+  input[type="range"]{width:100%}
+  .flex{display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap}
+  .tog{display:inline-flex; align-items:center; gap:8px; border:1px solid var(--border); padding:6px 10px;
+    border-radius:10px; user-select:none; cursor:pointer}
+  .pill{display:inline-block; padding:2px 8px; border-radius:999px; border:1px solid var(--border); font-size:12px}
+  .good{color:var(--good)} .warn{color:var(--warn)} .bad{color:var(--bad)}
+  .hint{color:var(--muted); font-size:12px}
+  .kpi{border:1px solid var(--border); border-radius:12px; padding:10px; display:flex; flex-direction:column; gap:6px}
+  .kpi h3{margin:0; font-size:14px; color:var(--muted)}
+  .kpi .big{font-size:22px; font-weight:600}
+  .kpi .row{display:flex; justify-content:space-between; font-size:12px; color:var(--muted)}
+  .kpis{display:grid; gap:10px; grid-template-columns:repeat(1,1fr)}
+  .kpis .pair{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+  .chartWrap{height:var(--chart-h); max-height:var(--chart-h); border:1px solid var(--border); border-radius:12px; padding:8px}
+  .chartWrap > canvas{width:100% !important; height:100% !important; display:block}
+  table{width:100%; border-collapse:collapse; margin-top:10px}
+  th,td{padding:10px; border-bottom:1px dashed var(--border); font-size:14px}
+  th{text-align:left; color:var(--muted)} td:nth-child(n+2){text-align:right}
+  .controls{display:grid; gap:12px}
+  .controls .row{display:flex; gap:8px; flex-wrap:wrap}
+  .btn{border:1px solid var(--border); background:transparent; color:var(--text); padding:8px 12px; border-radius:10px; cursor:pointer}
+  .btn:hover{border-color:#334155}
+  .status{display:inline-flex; gap:6px; align-items:center}
+  .dot{width:9px; height:9px; border-radius:50%; background:#ef4444} .ok{background:#22c55e}
+  /* Compact mode */
+  .compact .chartWrap{height:var(--chart-h-compact)}
+  .compact th, .compact td{padding:8px; font-size:13px}
+  .compact .card{padding:10px} .compact h1{font-size:22px} .compact .card h2{font-size:15px}
+  .compact .kpi .big{font-size:20px}
+  @media print{
+    @page{size:A4 portrait; margin:10mm}
+    body{background:white} .btn, .tog, .hint, .status{display:none !important}
+  }
+</style>
+</head>
+<body>
+<div class="wrap" id="root">
+  <h1>Roche USD Coupon Sensitivity</h1>
+  <p class="sub">UST + spread (+ shocks) → yield → coupon (rounded). Use the toggles to switch **Light/Compact** and **Bars/Lines**.</p>
+
+  <div class="grid">
+    <!-- LEFT: Inputs + Chart -->
+    <section class="card">
+      <div class="flex">
+        <h2 style="margin:0">Inputs</h2>
+        <div class="row">
+          <label class="tog"><input id="lightMode" type="checkbox"> Light mode</label>
+          <label class="tog"><input id="compactMode" type="checkbox"> Compact mode</label>
+          <label class="tog"><input id="chartType" type="checkbox"> Bars / Lines</label>
+        </div>
+      </div>
+
+      <div class="controls">
+        <!-- Market Inputs -->
+        <div>
+          <h2>Market Inputs</h2>
+          <div class="section">
+            <div><label for="ust5">UST 5y (%)</label><input id="ust5" type="number" step="0.01" value="1.87"></div>
+            <div><label for="ust10">UST 10y (%)</label><input id="ust10" type="number" step="0.01" value="2.85"></div>
+            <div><label for="ust30">UST 30y (%)</label><input id="ust30" type="number" step="0.01" value="3.59"></div>
+          </div>
+          <div class="section" style="margin-top:6px">
+            <div><label for="spr5">Base spread 5y (bps)</label><input id="spr5" type="number" step="1" value="275"></div>
+            <div><label for="spr10">Base spread 10y (bps)</label><input id="spr10" type="number" step="1" value="300"></div>
+            <div><label for="spr30">Base spread 30y (bps)</label><input id="spr30" type="number" step="1" value="325"></div>
+          </div>
+        </div>
+
+        <!-- Stress Scenarios -->
+        <div>
+          <h2>Stress Scenarios</h2>
+          <label for="shock">Global spread shock (bps)</label>
+          <input id="shock" type="range" min="-100" max="100" step="5" value="0">
+          <div class="flex">
+            <span class="hint">Shift all spreads by ± bps (book-building sentiment).</span>
+            <span id="shockVal" class="pill">0 bps</span>
+          </div>
+
+          <div class="section" style="margin-top:6px">
+            <div><label for="ps5">Per-tenor shock 5y (bps)</label><input id="ps5" type="range" min="-100" max="100" step="5" value="0"><div class="flex"><span></span><span id="ps5v" class="pill">0 bps</span></div></div>
+            <div><label for="ps10">Per-tenor shock 10y (bps)</label><input id="ps10" type="range" min="-100" max="100" step="5" value="0"><div class="flex"><span></span><span id="ps10v" class="pill">0 bps</span></div></div>
+            <div><label for="ps30">Per-tenor shock 30y (bps)</label><input id="ps30" type="range" min="-100" max="100" step="5" value="0"><div class="flex"><span></span><span id="ps30v" class="pill">0 bps</span></div></div>
+          </div>
+        </div>
+
+        <!-- Execution Settings -->
+        <div>
+          <h2>Execution Settings</h2>
+          <div class="section">
+            <div>
+              <label for="roundSel">Rounding increment</label>
+              <select id="roundSel">
+                <option value="0.125">1/8% (0.125)</option>
+                <option value="0.0625">1/16% (0.0625)</option>
+                <option value="none">No rounding</option>
+              </select>
+            </div>
+            <div>
+              <label class="tog"><input id="showDelta" type="checkbox" checked> Show Δ vs base on chart</label>
+            </div>
+            <div class="row" style="justify-content:flex-end">
+              <button class="btn" id="presetAA">Preset: AA</button>
+              <button class="btn" id="presetMID">Preset: Mid (AA/A+)</button>
+              <button class="btn" id="presetAplus">Preset: A+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Chart -->
+      <div class="flex" style="margin-top:8px">
+        <h2 style="margin:0">Coupons: Current vs Base</h2>
+        <span class="status"><span id="dot" class="dot"></span><span id="cstat" class="hint">Chart not loaded</span></span>
+      </div>
+      <div class="chartWrap"><canvas id="chart" aria-label="Coupon comparison chart" role="img"></canvas></div>
+
+      <!-- Detail Table -->
+      <table id="tbl">
+        <thead><tr>
+          <th>Tenor</th><th>UST (%)</th><th>Total spread (bps)</th><th>Yield (%)</th><th>Coupon (%)</th><th>Base coupon (%)</th><th>Δ vs base (bps)</th>
+        </tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+      <p class="hint">Base coupon = UST + base spread, rounded; Current coupon includes global/per-tenor shocks. Δ shows change vs base in basis points.</p>
+    </section>
+
+    <!-- RIGHT: Results Column -->
+    <aside class="card">
+      <h2 style="margin:0 0 8px">Results</h2>
+      <div class="kpis">
+        <div class="kpi">
+          <h3>5-Year</h3>
+          <div class="big" id="k5_coupon">—</div>
+          <div class="row">
+            <span>Δ vs base</span><span id="k5_delta" class="pill">—</span>
+          </div>
+          <div class="row"><span>Yield</span><span id="k5_yield">—</span></div>
+          <div class="row"><span>Total spread</span><span id="k5_spread">—</span></div>
+        </div>
+
+        <div class="pair">
+          <div class="kpi">
+            <h3>10-Year</h3>
+            <div class="big" id="k10_coupon">—</div>
+            <div class="row"><span>Δ vs base</span><span id="k10_delta" class="pill">—</span></div>
+            <div class="row"><span>Yield</span><span id="k10_yield">—</span></div>
+            <div class="row"><span>Total spread</span><span id="k10_spread">—</span></div>
+          </div>
+          <div class="kpi">
+            <h3>30-Year</h3>
+            <div class="big" id="k30_coupon">—</div>
+            <div class="row"><span>Δ vs base</span><span id="k30_delta" class="pill">—</span></div>
+            <div class="row"><span>Yield</span><span id="k30_yield">—</span></div>
+            <div class="row"><span>Total spread</span><span id="k30_spread">—</span></div>
+          </div>
+        </div>
+      </div>
+      <p class="hint" style="margin-top:8px">Tip: Toggle **Bars/Lines** and **Compact** for lecture projection or PDF export.</p>
+    </aside>
+  </div>
+</div>
+
+<!-- Load Chart.js safely -->
+<script>
+(function(){
+  const s=document.createElement('script');
+  s.src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js";
+  s.async=true; s.onload=()=>window.__chartReady=true; s.onerror=()=>window.__chartReady=false;
+  document.head.appendChild(s);
+})();
+</script>
+
+<script>
+(function(){
+  const $=id=>document.getElementById(id);
+  const root=$('root'), light=$('lightMode'), compact=$('compactMode'), chartType=$('chartType');
+  const ust5=$('ust5'), ust10=$('ust10'), ust30=$('ust30');
+  const spr5=$('spr5'), spr10=$('spr10'), spr30=$('spr30');
+  const shock=$('shock'), shockVal=$('shockVal'), ps5=$('ps5'), ps10=$('ps10'), ps30=$('ps30');
+  const ps5v=$('ps5v'), ps10v=$('ps10v'), ps30v=$('ps30v'), roundSel=$('roundSel'), showDelta=$('showDelta');
+  const dot=$('dot'), cstat=$('cstat'), tbody=$('tbody'), chartCanvas=$('chart');
+  const k5c=$('k5_coupon'), k10c=$('k10_coupon'), k30c=$('k30_coupon');
+  const k5d=$('k5_delta'), k10d=$('k10_delta'), k30d=$('k30_delta');
+  const k5y=$('k5_yield'), k10y=$('k10_yield'), k30y=$('k30_yield');
+  const k5s=$('k5_spread'), k10s=$('k10_spread'), k30s=$('k30_spread');
+
+  const presets={ AA:{s5:202,s10:204,s30:242}, MID:{s5:(202+226)/2,s10:(204+226)/2,s30:242}, APL:{s5:226,s10:226,s30:242} };
+
+  function rn(v,min,max,def=0){const n=Number(v); if(Number.isNaN(n)) return def; return Math.min(Math.max(n,min),max);}
+  function step(){ const v=roundSel.value; if(v==='none') return 0; return Number(v); }
+  function roundTo(x,inc){ if(!inc||inc<=0) return x; return Math.round(x/inc)*inc; }
+  function status(ok){ if(ok){dot.classList.add('ok'); cstat.textContent='Chart loaded';} else {dot.classList.remove('ok'); cstat.textContent='Chart not loaded';} }
+
+  function compute(draw=true){
+    const U5=rn(ust5.value,0,100), U10=rn(ust10.value,0,100), U30=rn(ust30.value,0,100);
+    const B5=rn(spr5.value,0,5000), B10=rn(spr10.value,0,5000), B30=rn(spr30.value,0,5000);
+    const G=rn(shock.value,-1000,1000), S5=rn(ps5.value,-1000,1000), S10=rn(ps10.value,-1000,1000), S30=rn(ps30.value,-1000,1000);
+    shockVal.textContent=`${G} bps`; ps5v.textContent=`${S5} bps`; ps10v.textContent=`${S10} bps`; ps30v.textContent=`${S30} bps`;
+    const inc=step();
+
+    // totals (bps)
+    const T5=B5+G+S5, T10=B10+G+S10, T30=B30+G+S30;
+    // yields (%)
+    const Y5=U5+T5/100, Y10=U10+T10/100, Y30=U30+T30/100;
+    // base yields (no shocks)
+    const YB5=U5+B5/100, YB10=U10+B10/100, YB30=U30+B30/100;
+
+    // coupons rounded
+    const C5=inc?roundTo(Y5,inc):Y5, C10=inc?roundTo(Y10,inc):Y10, C30=inc?roundTo(Y30,inc):Y30;
+    const Bc5=inc?roundTo(YB5,inc):YB5, Bc10=inc?roundTo(YB10,inc):YB10, Bc30=inc?roundTo(YB30,inc):YB30;
+
+    // deltas (bps)
+    const d5=Math.round((C5-Bc5)*100), d10=Math.round((C10-Bc10)*100), d30=Math.round((C30-Bc30)*100);
+
+    // Update table
+    const rows=[['5y',U5,T5,Y5,C5,Bc5,d5],['10y',U10,T10,Y10,C10,Bc10,d10],['30y',U30,T30,Y30,C30,Bc30,d30]];
+    tbody.innerHTML=rows.map(([tenor,ust,t,y,c,b,d])=>{
+      const cls=d<=0?'good':(d<=25?'warn':'bad');
+      return `<tr><td>${tenor}</td><td>${ust.toFixed(2)}</td><td>${t.toFixed(0)}</td>
+              <td>${y.toFixed(3)}</td><td><span class="pill">${c.toFixed(3)}</span></td>
+              <td>${b.toFixed(3)}</td><td><span class="pill ${cls}">${d>=0?('+'+d):d}</span></td></tr>`;
+    }).join('');
+
+    // Update KPIs
+    function kfmt(val){return `${val.toFixed(3)}%`;}
+    function sFmt(bp){return `${bp.toFixed(0)} bps`;}
+    function setK(kc,kd,ky,ks,c,b,d,t){ kc.textContent=kfmt(c); kd.textContent=(d>=0?'+':'')+d+' bps';
+      kd.classList.remove('good','warn','bad'); kd.classList.add(d<=0?'good':(d<=25?'warn':'bad'));
+      ky.textContent=kfmt(t/100+ (ks===k5s?U5:ks===k10s?U10:U30) ); // not used; keep below:
+    }
+    // Proper KPI values
+    k5c.textContent=C5.toFixed(3)+'%'; k10c.textContent=C10.toFixed(3)+'%'; k30c.textContent=C30.toFixed(3)+'%';
+    [k5d,k10d,k30d].forEach((el,i)=>{const d=[d5,d10,d30][i]; el.textContent=(d>=0?'+':'')+d+' bps';
+      el.classList.remove('good','warn','bad'); el.classList.add(d<=0?'good':(d<=25?'warn':'bad'));});
+    k5y.textContent=Y5.toFixed(3)+'%'; k10y.textContent=Y10.toFixed(3)+'%'; k30y.textContent=Y30.toFixed(3)+'%';
+    k5s.textContent=T5.toFixed(0)+' bps'; k10s.textContent=T10.toFixed(0)+' bps'; k30s.textContent=T30.toFixed(0)+' bps';
+
+    if(draw) drawChart([C5,C10,C30],[Bc5,Bc10,Bc30],[d5,d10,d30]);
+  }
+
+  // Chart
+  let chart=null;
+  function drawChart(current, base, deltas){
+    if(!window.__chartReady || !window.Chart){ status(false); return; }
+    status(true);
+    const type = chartType.checked ? 'line' : 'bar';
+    const labels=['5y','10y','30y'];
+    const showD=showDelta.checked;
+    const data={
+      labels,
+      datasets: [
+        {label:'Base coupon', data:base, borderWidth:2, borderColor:'#94a3b8', backgroundColor:'rgba(148,163,184,.35)'},
+        {label:'Current coupon', data:current, borderWidth:2, borderColor:'#38bdf8', backgroundColor:'rgba(56,189,248,.35)'}
+      ]
+    };
+    const options={
+      responsive:true, maintainAspectRatio:false,
+      scales:{ y:{ beginAtZero:false, suggestedMin:3.5, suggestedMax:8, grid:{color:'rgba(148,163,184,.25)'} } },
+      plugins:{
+        legend:{labels:{boxWidth:14}},
+        tooltip:{callbacks:{label:(ctx)=>` ${ctx.dataset.label}: ${ctx.parsed.y.toFixed(3)}%`}}
+      },
+      animation:false
+    };
+
+    if(chart){ chart.config.type=type; chart.data=data; chart.options=options; chart.update(); }
+    else { chart = new Chart(chartCanvas.getContext('2d'), {type, data, options}); }
+
+    // Δ labels
+    if(showD && type==='bar'){
+      // Simple value labels on bars
+      Chart.unregister(ChartDataLabels??null); // in case datalabels lib not present
+      // Manual labels
+      const ctx = chartCanvas.getContext('2d');
+      chart.draw();
+      const metaCurr=chart.getDatasetMeta(1);
+      ctx.save(); ctx.font='12px system-ui'; ctx.fillStyle='#e5e7eb';
+      if(document.body.classList.contains('light')) ctx.fillStyle='#0f172a';
+      metaCurr.data.forEach((bar,i)=>{
+        const delta = deltas[i];
+        const x = bar.x; const y = bar.y - 6;
+        const text = (delta>=0?'+':'') + delta + ' bps';
+        ctx.textAlign='center'; ctx.fillText(text, x, y);
+      });
+      ctx.restore();
+    }
+  }
+  function status(ok){ if(ok){dot.classList.add('ok'); cstat.textContent='Chart loaded';} else {dot.classList.remove('ok'); cstat.textContent='Chart not loaded';} }
+
+  // Wire
+  [ust5,ust10,ust30,spr5,spr10,spr30,shock,ps5,ps10,ps30,roundSel,showDelta,chartType]
+    .forEach(el=>{ el.addEventListener('input', ()=>compute(true)); el.addEventListener('change', ()=>compute(true)); });
+
+  $('presetAA').addEventListener('click',()=>{spr5.value=Math.round(presets.AA.s5); spr10.value=Math.round(presets.AA.s10); spr30.value=Math.round(presets.AA.s30); compute();});
+  $('presetMID').addEventListener('click',()=>{spr5.value=Math.round(presets.MID.s5); spr10.value=Math.round(presets.MID.s10); spr30.value=Math.round(presets.MID.s30); compute();});
+  $('presetAplus').addEventListener('click',()=>{spr5.value=Math.round(presets.APL.s5); spr10.value=Math.round(presets.APL.s10); spr30.value=Math.round(presets.APL.s30); compute();});
+
+  light.addEventListener('change',()=>{ root.classList.toggle('light', light.checked); compute(true); });
+  compact.addEventListener('change',()=>{ root.classList.toggle('compact', compact.checked); compute(true); });
+
+  // Init
+  compute(false);
+  (function retry(){ compute(true); if(!window.__chartReady) setTimeout(retry, 400); })();
+})();
+</script>
+</body>
+</html>
